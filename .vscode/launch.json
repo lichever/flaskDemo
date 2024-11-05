@@ -9,7 +9,11 @@
             "request": "launch",
             "name": "flask",
             "program": "${workspaceFolder}/<executable file>",
-            
+            "env": {
+                "FLASK_APP": "app.py",
+                "FLASK_ENV": "development",
+                "FLASK_SECRET_KEY": "your_secret_key_here"  // Add your secret key here
+            }
         }
     ]
 }

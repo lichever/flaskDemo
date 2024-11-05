@@ -15,5 +15,12 @@
     {% else %}
     <h1>Hello, World!</h1>
     {% endif %}
+
+
+    <!-- add log in -->
+    <a href="{{ url_for('login') }}">Log In</a>
+    <!-- add log out -->
+    <a href="{{ url_for('logout') }}">Log Out</a>
+
   </body>
 </html>

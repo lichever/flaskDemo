@@ -1,17 +1,21 @@
-from flask import Flask, request, jsonify, url_for, g, render_template
+from flask import Flask, flash, make_response, redirect, request, jsonify, url_for, g, render_template, send_from_directory, session
 from markupsafe import escape
+from werkzeug.utils import secure_filename
+import os
+
+UPLOAD_FOLDER = '/Users/shawnzhang/Developer/MyProjects/flask/min_example/uploads'
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
+
 
 app = Flask(__name__)
-
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# app.secret_key = os.environ.get('FLASK_SECRET_KEY')  # Replace with a strong random key
+app.secret_key = os.urandom(24)
+print('key', app.secret_key)
+print('key', os.urandom(24))
 # Simulated in-memory storage
 items = {}
 
-
-@app.route("/")
-def hello_world():
-    print(g)
-    dir(g)
-    return "<p>Hello, World!</p>"
 
 
 # @app.route("/hello/<name>")
@@ -40,6 +44,26 @@ name = Markup("<h1>欢迎来到我们的网站</h1>")
 
 
 """
+
+@app.route("/")
+def index():
+    username = request.cookies.get('username')
+    print("cookies:  ", request.cookies)
+    print("user name:  ", username)
+    # use cookies.get(key) instead of cookies[key] to not get a
+    # KeyError if the cookie is missing.
+    print("session:  ", session, type(session))
+    return render_template("hello.html", person=username)
+
+
+# log out and delete the username cookie
+@app.route("/logout")
+def logout():
+    response = make_response(redirect("/"))
+    response.set_cookie("username", "", max_age=0)
+    # remove the username from the session if it's there
+    session.pop('username', None)
+    return response
 
 
 @app.route("/hello/")
@@ -120,11 +144,11 @@ def show_subpath(subpath):
 # It’s useful for testing functions that use request, session, or url_for.
 # In Flask, certain objects, such as request, session, and g, only work within a request context. This means you can normally only access them when an HTTP request is being processed. By using app.test_request_context(), you create a simulated request context, which allows you to interact with these objects in your code or tests without needing a real client request.
 
-with app.test_request_context():
-    print(
-        url_for("show_search_result", next="/")
-    )  # 未知变量将添加到 URL 中作为查询参数。
-    print(url_for("show_subpath", subpath="aa/bb"))  # 已知的关键字参数对应 URL 中的变量
+# with app.test_request_context():
+#     print(
+#         url_for("show_search_result", next="/")
+#     )  # 未知变量将添加到 URL 中作为查询参数。
+#     print(url_for("show_subpath", subpath="aa/bb"))  # 已知的关键字参数对应 URL 中的变量
 
 
 
@@ -135,7 +159,11 @@ def login():
         if request.form['username'] == 'admin' and request.form['password'] == 'admin':
             print(f"user name is {request.form['username']}")
             print(f"password is {request.form['password']}")
-            return {"status": 'ok'}, 200
+            resp = make_response(redirect(url_for('index'))) # redirect returns a Response object
+            resp.set_cookie("username", request.form['username'], path='/')
+            session['username'] = request.form['username']
+            # return {"status": 'ok'}, 200
+            return resp
         else:    
             error = 'Invalid Credentials. Please try again.'
     # the code below is executed if the request method
@@ -144,12 +172,49 @@ def login():
 
 
 
-
+# https://dormousehole.readthedocs.io/en/latest/patterns/fileuploads.html
 @app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        f = request.files['the_file']
-        f.save('/var/www/uploads/uploaded_file.txt')
+        # check if the post request has the file part
+        if 'the_file' not in request.files:
+            print('No file part')
+            flash('No file part')
+            return redirect(request.url)
+        file = request.files['the_file']
+        # If the user does not select a file, the browser submits an
+        # empty file without a filename.
+        if file.filename == '':
+            print(('No selected file'))
+            flash('No selected file')
+            return redirect(request.url)
+        if file :
+            if not allowed_file(file.filename):
+                print("file type not allowed")
+                flash('File type not allowed')
+                return redirect(request.url)
+            print("get file: ", file.filename)
+            filename = secure_filename(file.filename)
+            print(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            # return redirect(url_for('download_file', name=filename)) #url_for把函数名称作为第 一个参数。not the url path
+            return redirect(request.url)
+    return render_template('upload.html')
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+           
+           
+@app.route('/download/<name>')
+def download_file(name):
+    return send_from_directory(app.config["UPLOAD_FOLDER"], name, as_attachment=True)
+           
+           
+           
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('404.html', error=error), 404
 
 
 # if __name__ == "__main__":
